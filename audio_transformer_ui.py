@@ -64,7 +64,7 @@ class EqualizerUI(QWidget):
 
         # 上半区域（导入文件列表）
         self.importLayout = QVBoxLayout()
-        self.uploadButton = QPushButton('Add More Files')
+        self.uploadButton = QPushButton('Upload Files')
         self.uploadButton.clicked.connect(self.uploadFiles)
         self.importLayout.addWidget(self.uploadButton)
         self.fileListImport = QListWidget()
@@ -86,7 +86,7 @@ class EqualizerUI(QWidget):
 
         leftLayout.addLayout(self.exportLayout2)
 
-        
+
         # 下半区域（按钮与部分参数设置）
         self.exportwidget=QGroupBox()
         self.exportLayout = QGridLayout(self.exportwidget)
@@ -109,16 +109,16 @@ class EqualizerUI(QWidget):
         self.noise_saveButton = QPushButton('Noise-save')
         self.noise_saveButton.clicked.connect(self.noise_saveAudio)
         self.exportLayout.addWidget(self.noise_saveButton,2,0)
-        
-        
+
+
         self.filter_saveButton = QPushButton('Filter-save')
         self.filter_saveButton.clicked.connect(self.filter_saveAudio)
         self.exportLayout.addWidget(self.filter_saveButton,2,1)
-        
+
         self.comb_saveButton = QPushButton('Combine-save')
         self.comb_saveButton.clicked.connect(self.comb_saveAudio)
         self.exportLayout.addWidget(self.comb_saveButton,3,0)
-        
+
         self.split_saveButton = QPushButton('Split-save')
         self.split_saveButton.clicked.connect(self.split_saveAudio)
         self.exportLayout.addWidget(self.split_saveButton,3,1)
@@ -136,8 +136,8 @@ class EqualizerUI(QWidget):
         self.saf_checkbox.setChecked(True)
         self.exportLayout.addWidget(self.saf_checkbox,5,0)
 
-        self.exportLayout.addWidget(QLabel("(N,batch_size,alpha0,thres):"), 6, 0)
-        self.saf_ps = QLineEdit("3999,32,0.1,0.001")
+        self.exportLayout.addWidget(QLabel("(N,Batch_time,Epochs,alpha0):"), 6, 0)
+        self.saf_ps = QLineEdit("2,10,5,0.1")
         self.exportLayout.addWidget(self.saf_ps, 6, 1)
 
 
@@ -151,17 +151,23 @@ class EqualizerUI(QWidget):
         self.noise_params=QLineEdit("40,60,16000,800,0,30,-1")
         noise_layout.addWidget(self.noise_params)
 
-        noise_layout.addWidget(QLabel("noise type:"),0,1)
+        noise_layout.addWidget(QLabel("Noise type:"),0,1)
         self.noise_type=QComboBox()
         self.noise_type.addItems(['gaussian','uniform'])
         self.noise_type.currentIndexChanged.connect(self.change_noise_type)
         noise_layout.addWidget(self.noise_type,0,2)
 
-        noise_layout.addWidget(QLabel("filtering window time(ms):"),2,0)
-        self.noise_filtert=QLineEdit("200")
-        noise_layout.addWidget(self.noise_filtert,2,1)
 
         leftLayout.addWidget(noise)
+
+
+        rs_layout=QHBoxLayout()
+        rs_layout.addWidget(QLabel("Remove silence(min_time(ms),v_thres(dB),step(ms)):"))
+        self.rs_params=QLineEdit("200,40,2")
+        rs_layout.addWidget(self.rs_params)
+        leftLayout.addLayout(rs_layout)
+
+
 
         # 窗函数模块（语谱图显示）
         window=QGroupBox("STFT Window settings")
@@ -255,18 +261,14 @@ class EqualizerUI(QWidget):
         self.echo_effectivetime.currentIndexChanged.connect(self.change_echo_et)
         echo_layout.addWidget(self.echo_effectivetime,0,1)
 
-        echo_layout.addWidget(QLabel("Maximum_echo_number:"),1,0)
+        echo_layout.addWidget(QLabel("Minimum_echo_number:"),1,0)
         self.echo_minnumber=QSpinBox()
         self.echo_minnumber.setRange(2,100)
         self.echo_minnumber.setSingleStep(1)
         echo_layout.addWidget(self.echo_minnumber,1,1)
 
         echo_layout.addWidget(QLabel("Unit delay(ms,(t1,t2,t3)):"),2,0)
-        self.echo_ud=QLineEdit("50 50 50")
-        echo_layout.addWidget(self.echo_ud,2,1)
-
-        echo_layout.addWidget(QLabel("Unit delay(ms):"),2,0)
-        self.echo_ud=QLineEdit("50")
+        self.echo_ud=QLineEdit("50,50,50")
         echo_layout.addWidget(self.echo_ud,2,1)
 
         echo_layout.addWidget(QLabel("Echoing coefficient(a1,a2,a3):"),3,0)
@@ -403,10 +405,9 @@ class EqualizerUI(QWidget):
             params=tuple(int(s) for s in self.noise_params.text().split(',',-1))
             self.noise_fl = params[0]
             self.noise_fh = params[1]
-            self.noise_fwt = params[8]
 
             filter_path,_=filter(self.audio_name[1],self.audio_name[0],self.noise_fl,self.noise_fh,self.fft_wti,self.fft_st,
-                   self.noise_fwt,self.fft_wty,True,True)
+                   None,self.fft_wty,False,False)
             print(f"Saving audio: {filter_path}")
             if filter_path not in self.audioFilesOut:
                 self.audioFilesOut.append(filter_path)
@@ -455,10 +456,11 @@ class EqualizerUI(QWidget):
             self.isExported = True
             self.audio_name[0]=""
             self.audio_name[1]=""
-            
+
     def rs_saveAudio(self):
         if self.audio_name[0]!="":
-            output_path=remove_silence_ui(self.audio_name[0])
+            rs_params=tuple(int(s) for s in self.rs_params.text().split(",",-1))
+            output_path=remove_silence_ui(self.audio_name[0],rs_params[0],rs_params[1],rs_params[2])
             print(f"Saving audios: {output_path}\n")
             if output_path not in self.audioFilesOut:
                 self.audioFilesOut.append(output_path)
@@ -473,9 +475,9 @@ class EqualizerUI(QWidget):
         if self.audio_name[0]!="" and self.audio_name[1]!="":
             if self.saf_checkbox.isChecked():
                 saf_ps=tuple(float(s) for s in self.saf_ps.text().split(",",-1))
-                N,b_s,a0,thres=saf_ps
+                N,B_t,Epochs,a0=saf_ps
                 # 先双击无噪，后双击有噪
-                b_list,a_list=filter_self_adaptive(self.audio_name[1],self.audio_name[0],N,b_s,a0,thres)
+                b_list,a_list=filter_self_adaptive(self.audio_name[1],self.audio_name[0],N,B_t,Epochs,a0)
                 self.safilter=(b_list,a_list)
                 print("Trained successfully!")
 
@@ -520,28 +522,24 @@ class EqualizerUI(QWidget):
         if a0.key()==Qt.Key.Key_Delete:
             print(self.fileListImport.selectedItems())
             if self.fileListImport.selectedItems():
+                # for item in self.fileListImport.selectedItems():
+                    # del item
+                item_ptr=self.fileListImport.currentItem()
+                # print(item_ptr)
                 index=self.fileListImport.currentRow()
                 print(index)
-                if self.audio_name[0]==self.audioFiles[index]:
-                    # for item in self.fileListImport.selectedItems():
-                        # del item
-                    # item_ptr = self.fileListImport.currentItem()
-                    # print(item_ptr)
-                    self.fileListImport.takeItem(index)
-                    # del item_ptr
-                    # self.fileListImport.clear()
-                    self.audioFiles.pop(index)
+                self.fileListImport.takeItem(index)
+                # del item_ptr
+                # self.fileListImport.clear()
+                self.audioFiles.pop(index)
 
             if self.fileListExport.selectedItems():
-
+                # for item in self.fileListExport.selectedItems():
+                    # del item
+                item_ptr=self.fileListExport.currentItem()
                 index=self.fileListExport.currentRow()
-                print(index)
-                if self.audio_name[0]==self.audioFilesOut[index]:
-                    # for item in self.fileListExport.selectedItems():
-                        # del item
-                    # item_ptr = self.fileListExport.currentItem()
-                    self.fileListExport.takeItem(index)
-                    self.audioFilesOut.pop(index)
+                self.fileListExport.takeItem(item_ptr)
+                self.audioFiles.pop(index)
 
 
 if __name__ == '__main__':
